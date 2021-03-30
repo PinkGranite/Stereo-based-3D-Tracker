@@ -346,6 +346,16 @@ def dla34(pretrained, model_dir, **kwargs):  # DLA-34
             model.load_pretrained_model(model_dir, data='imagenet', name='dla34', hash='ba72cf86')
         else:
             model.load_pretrained_model(data='imagenet', name='dla34', hash='ba72cf86')
+
+    # 这里进行由mono到stereo的网络结构改进
+    base_layer = model._modules['base_layer']
+    the_conv = base_layer[0]
+    weights = torch.cat((the_conv.weight, the_conv.weight), dim=1)
+    new_conv = torch.nn.Conv2d(6, 16, kernel_size=7, stride=1,
+                               padding=3, bias=False)
+    new_conv.load_state_dict({'weight': weights})
+    base_layer[0] = new_conv
+
     return model
 
 
@@ -633,7 +643,7 @@ class DLASeg(nn.Module):
         ret = {}
         for head in self.heads:
             ret[head] = self.__getattr__(head)(x)
-        return [ret]
+        return ret
         # return ret['hm']
 
     '''
