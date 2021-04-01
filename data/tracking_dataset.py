@@ -85,16 +85,16 @@ class tracking_dataset(data.Dataset):
             if cat_id > self.num_categories or cat_id < -999:
                 continue
             cat_id = abs(cat_id)
-            ret['cat'][i] = cat_id
+            ret['cat'][i] = cat_id-1
             ret['mask'][i] = 1  # mask的作用是判断该位置是否是有效的
-            box_centerPoint = kitti_util_tracking.project_to_image(np.array(labels[i].t).reshape(1, 3), calib.P)
-            box_centerPoint = np.array([box_centerPoint[0][0] * scale_out[0], box_centerPoint[0][1] * scale_out[1]],
-                                       dtype=np.int64)
-            ret['ind'][i] = box_centerPoint[1] * self.output_resolution[1] + box_centerPoint[0]
+            # box_centerPoint = kitti_util_tracking.project_to_image(np.array(labels[i].t).reshape(1, 3), calib.P)
+            # box_centerPoint = np.array([box_centerPoint[0][0] * scale_out[0], box_centerPoint[0][1] * scale_out[1]],
+            #                            dtype=np.int64)
+            # ret['ind'][i] = (box_centerPoint[1]) * self.output_resolution[1] + box_centerPoint[0]
             ret['dim'][i] = np.array([labels[i].h, labels[i].w, labels[i].l], dtype=np.float32)  # 将三维长宽高组织为一个array
-            ret['dim'][i] = 1
+            ret['dim_mask'][i] = 1
             ret['dep'][i] = labels[i].t[2]
-            ret['dep'][i] = 1
+            ret['dep_mask'][i] = 1
 
             # 生成heatmap
             box_2d = labels[i].box2d
@@ -102,10 +102,12 @@ class tracking_dataset(data.Dataset):
             h, w = h * scale_out[1], w * scale_out[0]  # 放缩后的h, w
             radius = gaussian_radius((math.ceil(h), math.ceil(w)))
             radius = max(0, int(radius))
-            # ct = np.array([(box_2d[2]-box_2d[0])/2, (box_2d[3]-box_2d[1])/2], dtype=np.float32)  # 原来的中心点
-            # ct = np.array([ct[0] * scale_out[0], ct[1] * scale_out[1]], dtype=np.float32)  # 放缩后的中心点
-            # ct_int = ct.astype(np.int32)
-            draw_umich_gaussian(ret['hm'][cat_id - 1], box_centerPoint, radius)
+            ct = np.array([(box_2d[2]+box_2d[0])/2, (box_2d[3]+box_2d[1])/2], dtype=np.float32)  # 原来的中心点
+            ct = np.array([ct[0] * scale_out[0], ct[1] * scale_out[1]], dtype=np.float32)  # 放缩后的中心点
+            ct_int = ct.astype(np.int32)
+            draw_umich_gaussian(ret['hm'][cat_id - 1], ct_int, radius)
+
+            ret['ind'][i] = ct_int[1] * self.output_resolution[1] + ct_int[0]
 
             # 填充方向rot, 参见centerNet, bin based
             ret['rot_mask'][i] = 1
