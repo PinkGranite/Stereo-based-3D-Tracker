@@ -2,6 +2,7 @@ from loss.utils import *
 from loss.losses import *
 import torch
 import torch.nn as nn
+from torch.utils.checkpoint import checkpoint
 
 
 def _sigmoid(x):
@@ -30,22 +31,28 @@ class lossBuilder(nn.Module):
         output = self._sigmoid_output(output)
 
         if 'hm' in output:
-            losses['hm'] += self.crit(
-                output['hm'], batch['hm'], batch['ind'],
-                batch['mask'], batch['cat'])
+            losses['hm'] += checkpoint(self.crit, output['hm'], batch['hm'], batch['ind'],
+                                       batch['mask'], batch['cat'])
+            # losses['hm'] += self.crit(
+            #     output['hm'], batch['hm'], batch['ind'],
+            #     batch['mask'], batch['cat'])
 
         regression_heads = ['dep', 'dim']
 
         for head in regression_heads:
             if head in output:
-                losses[head] += self.crit_reg(
-                    output[head], batch[head + '_mask'],
-                    batch['ind'], batch[head])
+                losses[head] += checkpoint(self.crit_reg, output[head], batch[head + '_mask'],
+                                           batch['ind'], batch[head])
+                # losses[head] += self.crit_reg(
+                #     output[head], batch[head + '_mask'],
+                #     batch['ind'], batch[head])
 
         if 'rot' in output:
-            losses['rot'] += self.crit_rot(
-                output['rot'], batch['rot_mask'], batch['ind'], batch['rotbin'],
-                batch['rotres'])
+            losses['rot'] += checkpoint(self.crit_rot, output['rot'], batch['rot_mask'], batch['ind'], batch['rotbin'],
+                                        batch['rotres'])
+            # losses['rot'] += self.crit_rot(
+            #     output['rot'], batch['rot_mask'], batch['ind'], batch['rotbin'],
+            #     batch['rotres'])
 
         losses['tot'] = 0
         for head in heads:

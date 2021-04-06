@@ -1,7 +1,11 @@
 import torch
-import torch.nn
+import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.optim import Adam
+from torch.cuda.amp.autocast_mode import autocast
+from torch.cuda.amp.grad_scaler import GradScaler
+from torch.autograd import Variable
+from torch.utils.checkpoint import checkpoint, checkpoint_sequential
 import torch.nn.functional as F
 from data.kitti_util_tracking import *
 from data.kitti_object_tracking import *
@@ -28,33 +32,42 @@ def main():
 
     model.to(device)
     K = 7
+    # loss accumulation
+    accumulation_step = 4
     for i in range(K):
         train_dataset = tracking_dataset(kitti_object, root_dir=train_root, ki=i, K=K, typ='train')
         val_dataset = tracking_dataset(kitti_object, root_dir=train_root, ki=i, K=K, typ='val')
-        train_loader = DataLoader(train_dataset, batch_size=1, drop_last=True)
-        val_loader = DataLoader(val_dataset, batch_size=1, drop_last=True)
+        train_loader = DataLoader(train_dataset, batch_size=3, drop_last=True)
+        val_loader = DataLoader(val_dataset, batch_size=2, drop_last=True)
         for epoch in range(50):
             # 50个epoch
             for idx, batch in enumerate(train_loader):
+                print("batch{}.....".format(idx))
                 for key in batch:
                     batch[key] = batch[key].to(device)
                 image2 = batch['image2']
                 image3 = batch['image3']
                 stereo_img = torch.cat((image2, image3), dim=1).float()
+                # stereo_img = Variable(stereo_img, requires_grad=True)
                 # output
-                output = model(stereo_img)
-                print(output['hm'].shape)
-                print(output['dim'].shape)
-                print(output['dep'].shape)
-                print(output['orientation'].shape)
-                # loss
-                total_loss, losses = lossModel(output, batch)
-                loss_mean = total_loss.mean()
-                optimizer.zero_grad()
-                loss_mean.backward()
-                optimizer.step()
-                print('success !!')
-                break
+                model_seq = nn.Sequential(model, lossModel)
+                with autocast(enabled=True):
+                    output = model(stereo_img)
+                    # output = checkpoint(model.forward, stereo_img)
+                    # output = checkpoint_sequential(model_seq, segments=2, input=stereo_img)
+                    # loss
+                    total_loss, losses = lossModel(output, batch)
+                    loss_mean = total_loss.mean()
+                    # backward in autocast is not recommended, but as we use
+                    # checkpoint, if don't there are TypeError
+                    loss_mean /= accumulation_step
+                    loss_mean.backward()
+                if (idx+1) % accumulation_step == 0:
+                    optimizer.zero_grad()
+                    optimizer.step()
+                    print('success !!')
+                del output, total_loss, losses, loss_mean
+                
             break
         break
 

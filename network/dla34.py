@@ -9,6 +9,7 @@ from os.path import join
 import torch
 from torch import nn
 import torch.utils.model_zoo as model_zoo
+from torch.utils.checkpoint import checkpoint, checkpoint_sequential
 
 import numpy as np
 
@@ -311,7 +312,8 @@ class DLA(nn.Module):
         y = []
         x = self.base_layer(x)
         for i in range(6):
-            x = getattr(self, 'level{}'.format(i))(x)
+            x = checkpoint(getattr(self, 'level{}'.format(i)).forward, x)
+            # x = getattr(self, 'level{}'.format(i))(x)
             y.append(x)
         if self.return_levels:
             return y
@@ -526,7 +528,8 @@ class IDAUp(nn.Module):
         y = []
         for i in range(1, len(layers)):
             node = getattr(self, 'node_' + str(i))
-            x = node(torch.cat([x, layers[i]], 1))
+            x = checkpoint(node.forward, torch.cat([x, layers[i]], 1))
+            # x = node(torch.cat([x, layers[i]], 1))
             y.append(x)
         return x, y
 
@@ -635,16 +638,28 @@ class DLASeg(nn.Module):
                 m.bias.data.zero_()
         '''
 
+    # def forward(self, x):
+    #     x = self.base(x)
+    #     x = self.dla_up(x[self.first_level:])
+    #     # x = self.fc(x)
+    #     # y = self.softmax(self.up(x))
+    #     ret = {}
+    #     for head in self.heads:
+    #         ret[head] = self.__getattr__(head)(x)
+    #     return ret
+
     def forward(self, x):
         x = self.base(x)
         x = self.dla_up(x[self.first_level:])
+        # x = checkpoint(self.base, x)
+        # x = checkpoint(self.dla_up, x[self.first_level:])
         # x = self.fc(x)
         # y = self.softmax(self.up(x))
         ret = {}
         for head in self.heads:
+            # ret[head] = checkpoint_sequential(self.__getattr__(head), segments=2, input=x)
             ret[head] = self.__getattr__(head)(x)
         return ret
-        # return ret['hm']
 
     '''
     def optim_parameters(self, memo=None):
