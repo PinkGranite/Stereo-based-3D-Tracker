@@ -41,6 +41,7 @@ def main():
     model.to(device)
     # Fold num
     K = 7
+
     # loss accumulation
     accumulation_step = 4
 

@@ -85,7 +85,7 @@ class tracking_dataset(data.Dataset):
             if cat_id > self.num_categories or cat_id < -999:
                 continue
             cat_id = abs(cat_id)
-            ret['cat'][i] = cat_id-1
+            ret['cat'][i] = cat_id - 1
             ret['mask'][i] = 1  # mask的作用是判断该位置是否是有效的
             # box_centerPoint = kitti_util_tracking.project_to_image(np.array(labels[i].t).reshape(1, 3), calib.P)
             # box_centerPoint = np.array([box_centerPoint[0][0] * scale_out[0], box_centerPoint[0][1] * scale_out[1]],
@@ -93,7 +93,7 @@ class tracking_dataset(data.Dataset):
             # ret['ind'][i] = (box_centerPoint[1]) * self.output_resolution[1] + box_centerPoint[0]
             ret['dim'][i] = np.array([labels[i].h, labels[i].w, labels[i].l], dtype=np.float32)  # 将三维长宽高组织为一个array
             ret['dim_mask'][i] = 1
-            ret['dep'][i] = labels[i].t[2]
+            ret['dep'][i] = self.dep_fusion(labels[i])
             ret['dep_mask'][i] = 1
 
             # 生成heatmap
@@ -102,7 +102,7 @@ class tracking_dataset(data.Dataset):
             h, w = h * scale_out[1], w * scale_out[0]  # 放缩后的h, w
             radius = gaussian_radius((math.ceil(h), math.ceil(w)))
             radius = max(0, int(radius))
-            ct = np.array([(box_2d[2]+box_2d[0])/2, (box_2d[3]+box_2d[1])/2], dtype=np.float32)  # 原来的中心点
+            ct = np.array([(box_2d[2] + box_2d[0]) / 2, (box_2d[3] + box_2d[1]) / 2], dtype=np.float32)  # 原来的中心点
             ct = np.array([ct[0] * scale_out[0], ct[1] * scale_out[1]], dtype=np.float32)  # 放缩后的中心点
             ct_int = ct.astype(np.int32)
             draw_umich_gaussian(ret['hm'][cat_id - 1], ct_int, radius)
@@ -142,7 +142,7 @@ class tracking_dataset(data.Dataset):
 
     def get_sqAndIdx(self, index):
         """
-        计算当前图像的sequence以及index
+        calculate the sequence and index
         """
         if self.typ == 'train':
             for x in self.tra_durations:
@@ -180,3 +180,14 @@ class tracking_dataset(data.Dataset):
             labels = [x for x in self.labelObjects[sequence] if x.frame_idx == index]
 
         return image2, image3, calib, labels
+
+    def dep_fusion(self, label_object):
+        margin = 10
+        interval_size = 30
+        dep = ((label_object.t[0] ** 2) + (label_object.t[1] ** 2) + (label_object.t[2] ** 2)) ** 0.5
+        dep_sig = 1 / (1 + np.exp(-dep / 10))
+        # degree
+        thita = np.arccos(label_object.t[0] / ((label_object.t[0]) ** 2 + (label_object.t[2]) ** 2) ** 0.5)
+        n = int(thita / np.pi / 6)
+        dep_fusion = dep_sig * interval_size + n * (margin + interval_size)
+        return dep_fusion

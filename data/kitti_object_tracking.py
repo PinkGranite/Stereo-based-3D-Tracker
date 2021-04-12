@@ -59,7 +59,7 @@ class kitti_object_tracking(object):
         elif split == 'testing':
             self.sequence = 29
         else:
-            print('Unknown split: %s' % (split))
+            print('Unknown split: %s' % split)
             exit(-1)
 
         self.image2_dir = os.path.join(self.split_dir, image2_dir)
