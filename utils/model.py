@@ -79,4 +79,5 @@ def save_model(path, epoch, model, optimizer=None):
             'state_dict': state_dict}
     if not (optimizer is None):
         data['optimizer'] = optimizer.state_dict()
+    path = os.path.join(path, 'checkpoint_model_epoch_{}.pth'.format(epoch))
     torch.save(data, path)

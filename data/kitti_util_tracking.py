@@ -13,7 +13,7 @@ import os
 class Object3d_Tracking(object):
     """ 3d object label for tracking"""
     cat_ids = {'Pedestrian': 1, 'Car': 2, 'Cyclist': 3, 'Van': -2, 'Truck': -2, 'Person_sitting': -1,
-               'Tram': -9999, 'Misc': -9999, 'DontCare': 0}
+               'Person': -1, 'Tram': -9999, 'Misc': -9999, 'DontCare': 0}
 
     def __init__(self, label_file_line):
         data = label_file_line.split(' ')

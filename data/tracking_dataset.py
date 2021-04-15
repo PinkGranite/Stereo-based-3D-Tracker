@@ -147,14 +147,14 @@ class tracking_dataset(data.Dataset):
         if self.typ == 'train':
             for x in self.tra_durations:
                 index -= self.duration_frames[x]
-                if index <= 0:
+                if index < 0:
                     index += self.duration_frames[x]
                     sequence = x
                     break
         else:
             for x in self.val_durations:
                 index -= self.duration_frames[x]
-                if index <= 0:
+                if index < 0:
                     index += self.duration_frames[x]
                     sequence = x
                     break
@@ -174,10 +174,15 @@ class tracking_dataset(data.Dataset):
 
         # 获得labels
         if sequence in self.labelObjects.keys():
-            labels = [x for x in self.labelObjects[sequence] if x.frame_idx == index]
+            labels = []
+            while self.labelObjects[sequence][0].frame_idx == index:
+                labels.append(self.labelObjects[sequence].pop(0))
         else:
             self.labelObjects[sequence] = self.kitti_object.get_label_objects(sequence)
-            labels = [x for x in self.labelObjects[sequence] if x.frame_idx == index]
+            # labels = [x for x in self.labelObjects[sequence] if x.frame_idx == index]
+            labels = []
+            while self.labelObjects[sequence][0].frame_idx == index:
+                labels.append(self.labelObjects[sequence].pop(0))
 
         return image2, image3, calib, labels
 
